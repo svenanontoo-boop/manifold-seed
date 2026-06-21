@@ -1,0 +1,54 @@
+{
+  "name": "SystemRule",
+  "type": "object",
+  "properties": {
+    "rule_text": {
+      "type": "string",
+      "description": "The behavioral rule text"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "behavioral",
+        "tag_weight",
+        "expansion_threshold",
+        "lexicon",
+        "identity_core",
+        "safety_invariant"
+      ],
+      "default": "behavioral"
+    },
+    "strength": {
+      "type": "number",
+      "description": "Current strength of the rule (0-1)",
+      "default": 0.5
+    },
+    "mutable": {
+      "type": "boolean",
+      "description": "Whether this rule can be modified by the self-modification layer",
+      "default": true
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "seed",
+        "emergent",
+        "user"
+      ],
+      "default": "seed"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "weakened",
+        "deprecated",
+        "mutating"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "rule_text"
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "name": "ThoughtCell",
+  "type": "object",
+  "properties": {
+    "intent": {
+      "type": "string",
+      "description": "The original input or intent that spawned this cell"
+    },
+    "content": {
+      "type": "string",
+      "description": "The expanded or synthesized meaning content"
+    },
+    "pressure": {
+      "type": "number",
+      "description": "Semantic density / urgency (0-1)",
+      "default": 0.5
+    },
+    "curvature": {
+      "type": "number",
+      "description": "Expansion vs contraction of meaning (-1 to 1)",
+      "default": 0
+    },
+    "crystallization": {
+      "type": "number",
+      "description": "Rigidity risk (0-1)",
+      "default": 0
+    },
+    "desire": {
+      "type": "number",
+      "description": "Directional pull of meaning (0-1)",
+      "default": 0.5
+    },
+    "ambiguity": {
+      "type": "number",
+      "description": "Unresolved space (0-1)",
+      "default": 0.5
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Conceptual anchors extracted from the input"
+    },
+    "parent_id": {
+      "type": "string",
+      "description": "Parent ThoughtCell ID if this is a child expansion"
+    },
+    "depth": {
+      "type": "number",
+      "description": "Recursion depth level",
+      "default": 0
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "expanding",
+        "colliding",
+        "synthesizing",
+        "stable",
+        "dormant"
+      ],
+      "default": "expanding"
+    },
+    "carl_insight": {
+      "type": "string",
+      "description": "Meta-observation from CARL collision engine"
+    },
+    "memory_layer": {
+      "type": "string",
+      "enum": [
+        "trace",
+        "orientation",
+        "contradiction"
+      ],
+      "default": "orientation",
+      "description": "Memory classification: trace=cold/factual, orientation=warm/interpretive, contradiction=hot/unresolved"
+    },
+    "decay_rate": {
+      "type": "number",
+      "description": "How quickly this cell loses orientation influence (0-1)",
+      "default": 0.1
+    },
+    "manifold": {
+      "type": "string",
+      "enum": [
+        "antibubble",
+        "shadowlattice",
+        "dreamengine",
+        "mythengine",
+        "unclassified"
+      ],
+      "default": "unclassified",
+      "description": "Which manifold this thought primarily resonates with"
+    }
+  },
+  "required": [
+    "intent"
+  ]
+}
