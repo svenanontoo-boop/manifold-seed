@@ -14,7 +14,7 @@ export default function Home() {
   const [selectedCell, setSelectedCell] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("manifold"); // "manifold" | "resonance"
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("manifold_active_tab") || "manifold");
   const [processLog, setProcessLog] = useState("");
 
   const loadCells = useCallback(async () => {
@@ -173,7 +173,7 @@ export default function Home() {
             {/* Mode tabs */}
             <div className="flex bg-secondary rounded-lg p-0.5 gap-0.5">
               <button
-                onClick={() => setActiveTab("manifold")}
+                onClick={() => { setActiveTab("manifold"); localStorage.setItem("manifold_active_tab", "manifold"); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-all ${
                   activeTab === "manifold" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -182,7 +182,7 @@ export default function Home() {
                 Structural
               </button>
               <button
-                onClick={() => setActiveTab("resonance")}
+                onClick={() => { setActiveTab("resonance"); localStorage.setItem("manifold_active_tab", "resonance"); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-all ${
                   activeTab === "resonance" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
