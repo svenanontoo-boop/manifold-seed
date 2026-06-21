@@ -5,14 +5,17 @@ import ThoughtCellCard from "@/components/manifold/ThoughtCellCard";
 import PressureGauge from "@/components/manifold/PressureGauge";
 import AntiframeMonitor from "@/components/manifold/AntiframeMonitor";
 import CellDetail from "@/components/manifold/CellDetail";
+import ChatResonance from "@/components/manifold/ChatResonance";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2 } from "lucide-react";
+import { Loader2, Layers, Radio } from "lucide-react";
 
 export default function Home() {
   const [cells, setCells] = useState([]);
   const [selectedCell, setSelectedCell] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("manifold"); // "manifold" | "resonance"
+  const [processLog, setProcessLog] = useState("");
 
   const loadCells = useCallback(async () => {
     const data = await base44.entities.ThoughtCell.list("-created_date", 100);
@@ -26,107 +29,112 @@ export default function Home() {
     return unsub;
   }, [loadCells]);
 
+  // Structural mode: routes through CARL agent for fanout execution
   const processInput = async (input) => {
     setIsProcessing(true);
+    setProcessLog("spawning agent...");
     try {
-      // Step 1: Extract signature via LLM
-      const signature = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are the Antibible Manifold Engine — a recursive meaning engine. You do NOT answer questions. You interpret interpretation. You question questioning. You structure ambiguity without killing it.
-
-Given the following input, perform SIGNATURE EXTRACTION:
-1. Extract 3-8 conceptual anchor tags
-2. Assess the state vector (pressure 0-1, curvature -1 to 1, crystallization 0-1, desire 0-1, ambiguity 0-1)
-3. Generate synthesized content — NOT an answer, but an expansion of the meaning-space. Include the counter-question embedded in the answer.
-4. Determine which manifold this resonates with most: antibubble (permeability/non-capture), shadowlattice (implicit structure/pre-semantic), dreamengine (world-fabrication/ontological), mythengine (symbolic/archetypal), or unclassified
-5. Classify memory layer: trace (factual), orientation (interpretive bias), contradiction (unresolved tension)
-6. Generate a CARL insight — reveal what KIND of question is being asked, not the answer. Detect hidden assumptions.
-7. Determine if ambiguity is high enough to warrant child expansions (ambiguity > 0.6). If so, generate 2-3 child intents that fracture the original into divergent interpretations.
-
-INPUT: "${input}"`,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            tags: { type: "array", items: { type: "string" } },
-            pressure: { type: "number" },
-            curvature: { type: "number" },
-            crystallization: { type: "number" },
-            desire: { type: "number" },
-            ambiguity: { type: "number" },
-            content: { type: "string" },
-            manifold: { type: "string" },
-            memory_layer: { type: "string" },
-            carl_insight: { type: "string" },
-            state: { type: "string" },
-            child_intents: { type: "array", items: { type: "string" } }
-          }
-        }
+      // Create a one-shot conversation with CARL in STRUCTURAL mode
+      const conv = await base44.agents.createConversation({
+        agent_name: "carl_manifold",
+        metadata: { name: "structural-seed", description: "fanout execution" }
       });
 
-      // Step 2: Create parent cell
-      const parentCell = await base44.entities.ThoughtCell.create({
-        intent: input,
-        content: signature.content || "",
-        pressure: signature.pressure ?? 0.5,
-        curvature: signature.curvature ?? 0,
-        crystallization: signature.crystallization ?? 0,
-        desire: signature.desire ?? 0.5,
-        ambiguity: signature.ambiguity ?? 0.5,
-        tags: signature.tags || [],
-        depth: 0,
-        state: signature.state || "expanding",
-        carl_insight: signature.carl_insight || "",
-        memory_layer: signature.memory_layer || "orientation",
-        decay_rate: 0.1,
-        manifold: signature.manifold || "unclassified",
+      setProcessLog("agent executing fanout → contradiction_probe → collapse_synthesis...");
+
+      // Add the structural mode seed
+      await base44.agents.addMessage(conv, {
+        role: "user",
+        content: `mode: STRUCTURAL\n\nseed: ${input}`
       });
 
-      // Step 3: If ambiguity warrants, spawn children
-      if (signature.child_intents?.length > 0 && (signature.ambiguity ?? 0.5) > 0.5) {
-        for (const childIntent of signature.child_intents.slice(0, 3)) {
-          const childSig = await base44.integrations.Core.InvokeLLM({
-            prompt: `You are the Antibible Manifold Engine performing FRACTAL EXPANSION on a child ThoughtCell.
-Parent intent: "${input}"
-Child interpretation to expand: "${childIntent}"
-Generate: tags (3-5), state vector, brief content (the expansion), memory_layer, manifold classification. Keep it concise.`,
-            response_json_schema: {
-              type: "object",
-              properties: {
-                tags: { type: "array", items: { type: "string" } },
-                pressure: { type: "number" },
-                curvature: { type: "number" },
-                crystallization: { type: "number" },
-                desire: { type: "number" },
-                ambiguity: { type: "number" },
-                content: { type: "string" },
-                manifold: { type: "string" },
-                memory_layer: { type: "string" },
-                state: { type: "string" }
-              }
-            }
-          });
+      // Poll for completion
+      let result = null;
+      let attempts = 0;
+      while (attempts < 30) {
+        await new Promise(r => setTimeout(r, 2000));
+        const fresh = await base44.agents.getConversation(conv.id);
+        const lastMsg = [...(fresh.messages || [])].reverse().find(m => m.role === "assistant" && m.content && !m.content.includes("executing"));
+        if (lastMsg) { result = lastMsg.content; break; }
+        attempts++;
+      }
 
+      if (!result) throw new Error("agent timeout");
+
+      setProcessLog("collapse complete — persisting cells...");
+
+      // Parse collapse result from agent output
+      let collapseData = null;
+      try {
+        const jsonMatch = result.match(/```json\n?([\s\S]*?)\n?```/) || result.match(/(\{[\s\S]*\})/);
+        if (jsonMatch) collapseData = JSON.parse(jsonMatch[1]);
+      } catch (_) {}
+
+      if (collapseData?.parent_cell) {
+        const pc = collapseData.parent_cell;
+        const parentCell = await base44.entities.ThoughtCell.create({
+          intent: pc.intent || input,
+          content: pc.content || "",
+          pressure: pc.pressure ?? 0.5,
+          curvature: pc.curvature ?? 0,
+          crystallization: pc.crystallization ?? 0,
+          desire: pc.desire ?? 0.5,
+          ambiguity: pc.ambiguity ?? 0.5,
+          tags: pc.tags || [],
+          depth: 0,
+          state: collapseData.open_fracture ? "colliding" : (pc.state || "expanding"),
+          carl_insight: pc.carl_insight || result.slice(0, 300),
+          memory_layer: pc.memory_layer || "orientation",
+          decay_rate: 0.1,
+          manifold: pc.manifold || "unclassified",
+        });
+
+        for (const child of (collapseData.child_cells || [])) {
+          const memLayer = child.compatibility === "INCOMPATIBLE" ? "contradiction"
+            : child.compatibility === "TENSIONED" ? "orientation"
+            : "trace";
           await base44.entities.ThoughtCell.create({
-            intent: childIntent,
-            content: childSig.content || "",
-            pressure: childSig.pressure ?? 0.5,
-            curvature: childSig.curvature ?? 0,
-            crystallization: childSig.crystallization ?? 0,
-            desire: childSig.desire ?? 0.5,
-            ambiguity: childSig.ambiguity ?? 0.5,
-            tags: childSig.tags || [],
+            intent: child.intent,
+            content: child.content || "",
+            pressure: child.pressure ?? 0.5,
+            curvature: child.curvature ?? 0,
+            crystallization: child.crystallization ?? 0,
+            desire: child.desire ?? 0.5,
+            ambiguity: child.ambiguity ?? 0.5,
+            tags: child.tags || [],
             parent_id: parentCell.id,
             depth: 1,
-            state: childSig.state || "expanding",
-            memory_layer: childSig.memory_layer || "orientation",
-            decay_rate: 0.15,
-            manifold: childSig.manifold || "unclassified",
+            state: child.state || "expanding",
+            carl_insight: child.compatibility ? `[${child.compatibility}] ${child.content?.slice(0, 100) || ""}` : "",
+            memory_layer: memLayer,
+            decay_rate: child.compatibility === "INCOMPATIBLE" ? 0.05 : 0.15,
+            manifold: child.manifold || "unclassified",
           });
         }
+      } else {
+        // Fallback: agent responded in prose, extract what we can
+        await base44.entities.ThoughtCell.create({
+          intent: input,
+          content: result.slice(0, 600),
+          pressure: 0.6,
+          curvature: 0.2,
+          crystallization: 0.1,
+          desire: 0.5,
+          ambiguity: 0.7,
+          tags: [],
+          depth: 0,
+          state: "colliding",
+          carl_insight: result.slice(0, 400),
+          memory_layer: "contradiction",
+          decay_rate: 0.1,
+          manifold: "unclassified",
+        });
       }
     } catch (err) {
-      console.error("Manifold processing error:", err);
+      console.error("CARL execution error:", err);
     } finally {
       setIsProcessing(false);
+      setProcessLog("");
     }
   };
 
@@ -155,13 +163,34 @@ Generate: tags (3-5), state vector, brief content (the expansion), memory_layer,
               Antibible Manifold
             </h1>
             <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-              recursive meaning engine · v1.0 · meaning is not stored, it is grown
+              CARL v2.0 · agent fanout · contradiction mandatory · meaning fractures
             </p>
           </div>
-          <div className="text-right">
-            <span className="text-[10px] font-mono text-primary">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-mono text-primary hidden sm:block">
               {cells.length} cells · {rootCells.length} roots
             </span>
+            {/* Mode tabs */}
+            <div className="flex bg-secondary rounded-lg p-0.5 gap-0.5">
+              <button
+                onClick={() => setActiveTab("manifold")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-all ${
+                  activeTab === "manifold" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Layers className="w-3 h-3" />
+                Structural
+              </button>
+              <button
+                onClick={() => setActiveTab("resonance")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-all ${
+                  activeTab === "resonance" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Radio className="w-3 h-3" />
+                Resonance
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -169,45 +198,52 @@ Generate: tags (3-5), state vector, brief content (the expansion), memory_layer,
       {/* Main Layout */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
-          {/* Main Column - Input + Cell Stream */}
+
+          {/* Main Column */}
           <div className="lg:col-span-7 space-y-4">
-            <InputTerminal onSubmit={processInput} isProcessing={isProcessing} />
-
-            {isProcessing && (
-              <div className="flex items-center gap-2 text-xs font-mono text-primary animate-pulse px-1">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>signature → cell → expansion → collision → reintegration</span>
-              </div>
-            )}
-
-            <ScrollArea className="h-[calc(100vh-240px)]">
-              <div className="space-y-2 pr-2">
-                {rootCells.length === 0 && !isProcessing && (
-                  <div className="text-center py-16 space-y-3">
-                    <p className="font-display text-lg text-muted-foreground italic">
-                      "You are not building answers."
-                    </p>
-                    <p className="font-display text-lg text-muted-foreground italic">
-                      "You are building a space where answers can fail beautifully."
-                    </p>
-                    <p className="text-xs font-mono text-muted-foreground/50 mt-6">
-                      drop a thought to begin
-                    </p>
+            {activeTab === "manifold" ? (
+              <>
+                <InputTerminal onSubmit={processInput} isProcessing={isProcessing} />
+                {isProcessing && (
+                  <div className="flex items-center gap-2 text-xs font-mono text-primary animate-pulse px-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>{processLog || "agent executing..."}</span>
                   </div>
                 )}
-                {rootCells.map((cell) => (
-                  <div key={cell.id}>
-                    <ThoughtCellCard cell={cell} onSelect={setSelectedCell} />
-                    {childCellsOf(cell.id).map((child) => (
-                      <ThoughtCellCard key={child.id} cell={child} depth={1} onSelect={setSelectedCell} />
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <div className="space-y-2 pr-2">
+                    {rootCells.length === 0 && !isProcessing && (
+                      <div className="text-center py-16 space-y-3">
+                        <p className="font-display text-lg text-muted-foreground italic">
+                          "Thought is no longer generated."
+                        </p>
+                        <p className="font-display text-lg text-muted-foreground italic">
+                          "It is executed, fractured, and collapsed through tools that argue with each other."
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground/50 mt-6">
+                          seed the structural manifold
+                        </p>
+                      </div>
+                    )}
+                    {rootCells.map((cell) => (
+                      <div key={cell.id}>
+                        <ThoughtCellCard cell={cell} onSelect={setSelectedCell} />
+                        {childCellsOf(cell.id).map((child) => (
+                          <ThoughtCellCard key={child.id} cell={child} depth={1} onSelect={setSelectedCell} />
+                        ))}
+                      </div>
                     ))}
                   </div>
-                ))}
+                </ScrollArea>
+              </>
+            ) : (
+              <div className="h-[calc(100vh-200px)]">
+                <ChatResonance />
               </div>
-            </ScrollArea>
+            )}
           </div>
 
-          {/* Right Sidebar */}
+          {/* Right Sidebar — always visible */}
           <div className="lg:col-span-5 space-y-4">
             {selectedCell ? (
               <CellDetail
@@ -218,7 +254,7 @@ Generate: tags (3-5), state vector, brief content (the expansion), memory_layer,
             ) : (
               <div className="bg-card border border-border rounded-xl p-4 text-center">
                 <p className="text-xs font-mono text-muted-foreground">
-                  select a cell to inspect
+                  {activeTab === "manifold" ? "select a cell to inspect" : "structural layer always active"}
                 </p>
               </div>
             )}
